@@ -19,15 +19,20 @@
         <ul class="link-list">
             {% for link in links %}
             <li class="link-item">
-                <div class="link-info">
-                    <a href="{{ link['url'] }}" target="_blank" rel="noopener" class="link-name">{{ link['name'] }}</a>
-                    <a href="{{ link['url'] }}" target="_blank" rel="noopener" class="link-url">{{ link['url'] }}</a>
-                </div>
-                <div class="link-actions">
-                    <button class="btn-edit" onclick="toggleEdit(this)">Edit</button>
-                    <form method="POST" action="{{ url_for('delete', link_id=link['id']) }}" class="delete-form">
-                        <button type="submit" class="btn-delete" onclick="return confirm('Remove this link?')">Remove</button>
-                    </form>
+                <div class="link-row">
+                    <div class="link-left">
+                        <div class="link-info">
+                            <a href="{{ link['url'] }}" target="_blank" rel="noopener" class="link-name">{{ link['name'] }}</a>
+                            <a href="{{ link['url'] }}" target="_blank" rel="noopener" class="link-url">{{ link['url'] }}</a>
+                        </div>
+                        <div class="link-actions">
+                            <button class="btn-edit" onclick="toggleEdit(this)">Edit</button>
+                            <form method="POST" action="{{ url_for('delete', link_id=link['id']) }}" class="delete-form">
+                                <button type="submit" class="btn-delete" onclick="return confirm('Remove this link?')">Remove</button>
+                            </form>
+                        </div>
+                    </div>
+                    <a href="{{ link['url'] }}" target="_blank" rel="noopener" class="btn-open">Open</a>
                 </div>
                 <form method="POST" action="{{ url_for('edit', link_id=link['id']) }}" class="edit-form hidden">
                     <input type="text" name="name" value="{{ link['name'] }}" required>

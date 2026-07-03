@@ -1,3 +1,5 @@
+import os
+import pathlib
 from flask import Flask, render_template, request, redirect, url_for
 import sqlite3
 
@@ -67,4 +69,19 @@ def delete(link_id):
 
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+
+    extra = []
+    for folder in ("templates", "static"):
+        p = pathlib.Path(__file__).parent / folder
+        if p.is_dir():
+            for f in p.rglob("*"):
+                if f.is_file():
+                    extra.append(str(f))
+
+    app.run(
+        debug=True,
+        host="0.0.0.0",
+        port=5000,
+        extra_files=extra,
+        exclude_patterns=["*.db"],
+    )
