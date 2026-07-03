@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkWeb</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>LinkWeb</h1>
+
+        <form method="POST" action="{{ url_for('add') }}" class="add-form">
+            <input type="text" name="name" placeholder="Name" required>
+            <input type="url" name="url" placeholder="https://..." required>
+            <button type="submit">Add</button>
+        </form>
+
+        <ul class="link-list">
+            {% for link in links %}
+            <li class="link-item">
+                <div class="link-info">
+                    <a href="{{ link['url'] }}" target="_blank" rel="noopener" class="link-name">{{ link['name'] }}</a>
+                    <a href="{{ link['url'] }}" target="_blank" rel="noopener" class="link-url">{{ link['url'] }}</a>
+                </div>
+                <div class="link-actions">
+                    <button class="btn-edit" onclick="toggleEdit(this)">Edit</button>
+                    <form method="POST" action="{{ url_for('delete', link_id=link['id']) }}" class="delete-form">
+                        <button type="submit" class="btn-delete" onclick="return confirm('Remove this link?')">Remove</button>
+                    </form>
+                </div>
+                <form method="POST" action="{{ url_for('edit', link_id=link['id']) }}" class="edit-form hidden">
+                    <input type="text" name="name" value="{{ link['name'] }}" required>
+                    <input type="url" name="url" value="{{ link['url'] }}" required>
+                    <div class="edit-actions">
+                        <button type="submit" class="btn-save">Save</button>
+                        <button type="button" class="btn-cancel" onclick="toggleEdit(this)">Cancel</button>
+                    </div>
+                </form>
+            </li>
+            {% else %}
+            <li class="empty">No links yet. Add one above.</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <script>
+        function toggleEdit(btn) {
+            var item = btn.closest('.link-item');
+            item.querySelector('.link-actions').classList.toggle('hidden');
+            item.querySelector('.edit-form').classList.toggle('hidden');
+        }
+    </script>
+</body>
+</html>
