@@ -17,10 +17,24 @@ body {
     padding: 16px;
 }
 
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
 h1 {
     font-size: 1.5rem;
-    margin-bottom: 16px;
     color: #ffffff;
+}
+
+.clock {
+    font-size: 1.3rem;
+    font-weight: 900;
+    color: #6aabf0;
+    font-family: "SF Mono", "Cascadia Code", "Consolas", "Courier New", monospace;
+    letter-spacing: 0.05em;
 }
 
 .add-form {

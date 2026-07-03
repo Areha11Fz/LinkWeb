@@ -8,7 +8,10 @@
 </head>
 <body>
     <div class="container">
-        <h1>LinkWeb</h1>
+        <div class="header">
+            <h1>LinkWeb</h1>
+            <div id="clock" class="clock">--:--:--</div>
+        </div>
 
         <form method="POST" action="{{ url_for('add') }}" class="add-form">
             <input type="text" name="name" placeholder="Name" required>
@@ -55,6 +58,33 @@
             item.querySelector('.link-actions').classList.toggle('hidden');
             item.querySelector('.edit-form').classList.toggle('hidden');
         }
+
+        var clockOffset = 0;
+
+        function syncClock() {
+            var t0 = Date.now();
+            fetch("https://time.google.com", { method: "HEAD", cache: "no-store" })
+                .then(function(res) {
+                    var t1 = Date.now();
+                    var serverTime = new Date(res.headers.get("Date")).getTime();
+                    var roundTrip = t1 - t0;
+                    clockOffset = serverTime + roundTrip / 2 - t1;
+                })
+                .catch(function() {});
+        }
+
+        function updateClock() {
+            var now = new Date(Date.now() + clockOffset);
+            var h = String(now.getHours()).padStart(2, "0");
+            var m = String(now.getMinutes()).padStart(2, "0");
+            var s = String(now.getSeconds()).padStart(2, "0");
+            var ms = String(Math.floor(now.getMilliseconds() / 100));
+            document.getElementById("clock").textContent = h + ":" + m + ":" + s + "." + ms;
+        }
+
+        syncClock();
+        setInterval(syncClock, 30000);
+        setInterval(updateClock, 100);
     </script>
 </body>
 </html>
