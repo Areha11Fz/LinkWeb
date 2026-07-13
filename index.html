@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LinkWeb</title>
     <link rel="stylesheet" href="static/style.css">
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -53,7 +55,7 @@
 
         function deleteLink(id) {
             if (!confirm("Remove this link?")) return;
-            var links = getLinks().filter(function(l) { return l.id !== id; });
+            var links = getLinks().filter(function (l) { return l.id !== id; });
             saveLinks(links);
             render();
         }
@@ -113,7 +115,7 @@
             if (name && url) editLink(id, name, url);
         }
 
-        document.getElementById("add-form").addEventListener("submit", function(e) {
+        document.getElementById("add-form").addEventListener("submit", function (e) {
             e.preventDefault();
             var name = document.getElementById("add-name").value.trim();
             var url = document.getElementById("add-url").value.trim();
@@ -128,14 +130,15 @@
 
         function syncClock() {
             var t0 = Date.now();
-            fetch("/", { method: "HEAD", cache: "no-store" })
-                .then(function(res) {
+            fetch("https://worldtimeapi.org/api/timezone/Etc/UTC")
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
                     var t1 = Date.now();
-                    var serverTime = new Date(res.headers.get("Date")).getTime();
+                    var serverTime = data.unixtime * 1000;
                     var roundTrip = t1 - t0;
                     clockOffset = serverTime + roundTrip / 2 - t1;
                 })
-                .catch(function() {});
+                .catch(function () { });
         }
 
         function updateClock() {
@@ -154,4 +157,5 @@
         setInterval(updateClock, 100);
     </script>
 </body>
+
 </html>
