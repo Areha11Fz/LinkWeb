@@ -130,9 +130,9 @@
 
         function syncClock() {
             var t0 = Date.now();
-            fetch("https://worldtimeapi.org/api/timezone/Etc/UTC")
-                .then(function (res) { return res.json(); })
-                .then(function (data) {
+            fetch("https://time.cloudflare.com")
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
                     var t1 = Date.now();
                     var serverTime = data.unixtime * 1000;
                     var roundTrip = t1 - t0;
