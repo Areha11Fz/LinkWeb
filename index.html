@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkWeb</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>LinkWeb</h1>
+            <div id="clock" class="clock">--:--:--</div>
+        </div>
+
+        <form id="add-form" class="add-form">
+            <input type="text" id="add-name" placeholder="Name" required>
+            <input type="url" id="add-url" placeholder="https://..." required>
+            <button type="submit">Add</button>
+        </form>
+
+        <ul id="link-list" class="link-list"></ul>
+    </div>
+
+    <script>
+        function getLinks() {
+            return JSON.parse(localStorage.getItem("links") || "[]");
+        }
+
+        function saveLinks(links) {
+            localStorage.setItem("links", JSON.stringify(links));
+        }
+
+        function addLink(name, url) {
+            var links = getLinks();
+            links.unshift({ id: Date.now(), name: name, url: url, createdAt: new Date().toISOString() });
+            saveLinks(links);
+            render();
+        }
+
+        function editLink(id, name, url) {
+            var links = getLinks();
+            for (var i = 0; i < links.length; i++) {
+                if (links[i].id === id) {
+                    links[i].name = name;
+                    links[i].url = url;
+                    break;
+                }
+            }
+            saveLinks(links);
+            render();
+        }
+
+        function deleteLink(id) {
+            if (!confirm("Remove this link?")) return;
+            var links = getLinks().filter(function(l) { return l.id !== id; });
+            saveLinks(links);
+            render();
+        }
+
+        function render() {
+            var links = getLinks();
+            var list = document.getElementById("link-list");
+            if (links.length === 0) {
+                list.innerHTML = '<li class="empty">No links yet. Add one above.</li>';
+                return;
+            }
+            var html = "";
+            for (var i = 0; i < links.length; i++) {
+                var l = links[i];
+                html += '<li class="link-item">';
+                html += '<div class="link-row">';
+                html += '<div class="link-left">';
+                html += '<div class="link-info">';
+                html += '<a href="' + l.url.replace(/"/g, "&quot;") + '" target="_blank" rel="noopener" class="link-name">' + esc(l.name) + '</a>';
+                html += '<a href="' + l.url.replace(/"/g, "&quot;") + '" target="_blank" rel="noopener" class="link-url">' + esc(l.url) + '</a>';
+                html += '</div>';
+                html += '<div class="link-actions">';
+                html += '<button class="btn-edit" onclick="toggleEdit(this)">Edit</button>';
+                html += '<button class="btn-delete" onclick="deleteLink(' + l.id + ')">Remove</button>';
+                html += '</div>';
+                html += '</div>';
+                html += '<a href="' + l.url.replace(/"/g, "&quot;") + '" target="_blank" rel="noopener" class="btn-open">Open</a>';
+                html += '</div>';
+                html += '<form class="edit-form hidden" onsubmit="submitEdit(event, ' + l.id + ')">';
+                html += '<input type="text" name="name" value="' + esc(l.name) + '" required>';
+                html += '<input type="url" name="url" value="' + esc(l.url) + '" required>';
+                html += '<div class="edit-actions">';
+                html += '<button type="submit" class="btn-save">Save</button>';
+                html += '<button type="button" class="btn-cancel" onclick="toggleEdit(this)">Cancel</button>';
+                html += '</div>';
+                html += '</form>';
+                html += '</li>';
+            }
+            list.innerHTML = html;
+        }
+
+        function esc(s) {
+            return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        function toggleEdit(btn) {
+            var item = btn.closest(".link-item");
+            item.querySelector(".link-actions").classList.toggle("hidden");
+            item.querySelector(".edit-form").classList.toggle("hidden");
+        }
+
+        function submitEdit(event, id) {
+            event.preventDefault();
+            var form = event.target;
+            var name = form.querySelector("input[name=name]").value.trim();
+            var url = form.querySelector("input[name=url]").value.trim();
+            if (name && url) editLink(id, name, url);
+        }
+
+        document.getElementById("add-form").addEventListener("submit", function(e) {
+            e.preventDefault();
+            var name = document.getElementById("add-name").value.trim();
+            var url = document.getElementById("add-url").value.trim();
+            if (name && url) {
+                addLink(name, url);
+                document.getElementById("add-name").value = "";
+                document.getElementById("add-url").value = "";
+            }
+        });
+
+        var clockOffset = 0;
+
+        function syncClock() {
+            var t0 = Date.now();
+            fetch("/", { method: "HEAD", cache: "no-store" })
+                .then(function(res) {
+                    var t1 = Date.now();
+                    var serverTime = new Date(res.headers.get("Date")).getTime();
+                    var roundTrip = t1 - t0;
+                    clockOffset = serverTime + roundTrip / 2 - t1;
+                })
+                .catch(function() {});
+        }
+
+        function updateClock() {
+            var now = new Date(Date.now() + clockOffset);
+            var h = String(now.getHours()).padStart(2, "0");
+            var m = String(now.getMinutes()).padStart(2, "0");
+            var s = String(now.getSeconds()).padStart(2, "0");
+            var ms = String(Math.floor(now.getMilliseconds() / 100));
+            document.getElementById("clock").textContent = h + ":" + m + ":" + s + "." + ms;
+        }
+
+        render();
+        syncClock();
+        updateClock();
+        setInterval(syncClock, 30000);
+        setInterval(updateClock, 100);
+    </script>
+</body>
+</html>
