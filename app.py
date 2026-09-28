@@ -33,8 +33,15 @@ def init_db():
             conn.execute("ALTER TABLE links ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0")
         if "position" not in cols:
             conn.execute("ALTER TABLE links ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+            # Backfill so the existing display order (newest first) is preserved.
             conn.execute(
-                "UPDATE links SET position = id WHERE position = 0"
+                """
+                UPDATE links SET position = (
+                    SELECT COUNT(*) FROM links l2
+                    WHERE l2.created_at > links.created_at
+                       OR (l2.created_at = links.created_at AND l2.id > links.id)
+                )
+                """
             )
 
 
