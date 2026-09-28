@@ -97,15 +97,24 @@
         var pressTimer = null;
         var startY = 0;
         var armed = false;
+        var lastOrder = "";
 
         function items() {
             return Array.prototype.slice.call(list.querySelectorAll(".link-item"));
+        }
+
+        function currentOrder() {
+            return items().map(function(el) {
+                return el.dataset.id;
+            }).join(",");
         }
 
         function persistOrder() {
             var ids = items().map(function(el) {
                 return parseInt(el.dataset.id, 10);
             });
+            if (ids.join(",") === lastOrder) return;
+            lastOrder = ids.join(",");
             fetch("{{ url_for('reorder') }}", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -160,11 +169,13 @@
             if (e.pointerType !== "mouse" && !e.target.closest(".drag-handle")) return;
 
             startY = e.clientY;
-            armed = false;
+            armed = e.pointerType === "mouse";
+            if (armed) beginDrag(item, startY);
             pressTimer = setTimeout(function() {
+                if (armed) return;
                 armed = true;
                 beginDrag(item, startY);
-            }, 180);
+            }, 60);
         });
 
         list.addEventListener("pointermove", function(e) {
