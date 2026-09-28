@@ -92,8 +92,10 @@
 
         var list = document.getElementById("link-list");
         var dragItem = null;
+        var placeholder = null;
         var dragGrab = 0;
-        var dragShift = 0;
+        var dragHeight = 0;
+        var dragGap = 0;
         var pressTimer = null;
         var startY = 0;
         var armed = false;
@@ -101,14 +103,11 @@
         var scrollRaf = null;
         var pointerY = 0;
 
+        var EDGE = 90;
+        var MAX_STEP = 18;
+
         function items() {
             return Array.prototype.slice.call(list.querySelectorAll(".link-item"));
-        }
-
-        function currentOrder() {
-            return items().map(function(el) {
-                return el.dataset.id;
-            }).join(",");
         }
 
         function persistOrder() {
@@ -125,51 +124,60 @@
         }
 
         function beginDrag(el, clientY) {
+            var rect = el.getBoundingClientRect();
             dragItem = el;
-            dragGrab = clientY - el.getBoundingClientRect().top;
-            dragShift = 0;
+            dragGrab = clientY - rect.top;
+            dragHeight = rect.height;
+            dragGap = parseFloat(window.getComputedStyle(el).marginBottom) || 0;
+
+            placeholder = document.createElement("li");
+            placeholder.className = "drop-placeholder";
+            placeholder.style.height = rect.height + "px";
+            list.insertBefore(placeholder, el.nextSibling);
+
             el.classList.add("dragging");
+            el.style.position = "fixed";
+            el.style.left = rect.left + "px";
+            el.style.top = rect.top + "px";
+            el.style.width = rect.width + "px";
+            el.style.marginBottom = "0";
             document.body.classList.add("reordering");
         }
 
-        function moveDrag(clientY) {
-            if (!dragItem) return;
-            pointerY = clientY;
-            placeDragged();
-            updateAutoScroll();
-        }
-
-        // Follows the pointer and drops the item into the nearest slot.
+        // The dragged card is position:fixed, so the list keeps its height and
+        // only the placeholder moves around. The slot is picked by comparing the
+        // pointer against the other cards' midpoints measured as if the
+        // placeholder were not there -- that makes the result a pure function of
+        // the pointer, so the placeholder can never oscillate or skip a slot.
         function placeDragged() {
             if (!dragItem) return;
-            var rect = dragItem.getBoundingClientRect();
-            var layoutTop = rect.top - dragShift;
-            dragShift = pointerY - dragGrab - layoutTop;
-            dragItem.style.transform = "translateY(" + dragShift + "px)";
+            var top = pointerY - dragGrab;
+            dragItem.style.top = top + "px";
+            var center = top + dragHeight / 2;
 
-            var mid = rect.top + dragItem.offsetHeight / 2;
-            var target = null;
-            var dist = Infinity;
-            var after = false;
+            var phRect = placeholder.getBoundingClientRect();
+            var phSlot = phRect.height + dragGap;
 
-            items().forEach(function(el) {
-                if (el === dragItem) return;
-                var r = el.getBoundingClientRect();
-                var d = mid < r.top ? r.top - mid : (mid > r.bottom ? mid - r.bottom : 0);
-                if (d < dist) {
-                    dist = d;
-                    target = el;
-                    after = mid > r.top + r.height / 2;
-                }
+            var nodes = items().filter(function(el) {
+                return el !== dragItem;
             });
 
-            if (target && dist < 40) {
-                list.insertBefore(dragItem, after ? target.nextSibling : target);
+            var target = null;
+            for (var i = 0; i < nodes.length; i++) {
+                var r = nodes[i].getBoundingClientRect();
+                var mid = r.top + r.height / 2;
+                if (r.top > phRect.top) mid -= phSlot;
+                if (center > mid) target = nodes[i];
+            }
+
+            if (target) {
+                if (placeholder !== target.nextSibling) {
+                    list.insertBefore(placeholder, target.nextSibling);
+                }
+            } else if (nodes.length && placeholder !== nodes[0]) {
+                list.insertBefore(placeholder, nodes[0]);
             }
         }
-
-        var EDGE = 90;
-        var MAX_STEP = 18;
 
         function autoScrollSpeed() {
             var h = window.innerHeight;
@@ -212,11 +220,49 @@
                 cancelAnimationFrame(scrollRaf);
                 scrollRaf = null;
             }
-            dragItem.style.transform = "";
+
+            if (placeholder) {
+                list.insertBefore(dragItem, placeholder);
+                placeholder.parentNode.removeChild(placeholder);
+                placeholder = null;
+            }
+
             dragItem.classList.remove("dragging");
+            dragItem.style.position = "";
+            dragItem.style.left = "";
+            dragItem.style.top = "";
+            dragItem.style.width = "";
+            dragItem.style.marginBottom = "";
             document.body.classList.remove("reordering");
             dragItem = null;
+
             persistOrder();
+        }
+
+        function onMove(e) {
+            if (!armed) {
+                if (pressTimer && Math.abs(e.clientY - startY) > 6) {
+                    clearTimeout(pressTimer);
+                    pressTimer = null;
+                }
+                return;
+            }
+            e.preventDefault();
+            pointerY = e.clientY;
+            placeDragged();
+            updateAutoScroll();
+        }
+
+        function onRelease() {
+            clearTimeout(pressTimer);
+            pressTimer = null;
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onRelease);
+            window.removeEventListener("pointercancel", onRelease);
+            if (armed) {
+                armed = false;
+                endDrag();
+            }
         }
 
         list.addEventListener("pointerdown", function(e) {
@@ -227,36 +273,19 @@
             if (e.pointerType !== "mouse" && !e.target.closest(".drag-handle")) return;
 
             startY = e.clientY;
+            pointerY = e.clientY;
             armed = e.pointerType === "mouse";
             if (armed) beginDrag(item, startY);
+
             pressTimer = setTimeout(function() {
                 if (armed) return;
                 armed = true;
                 beginDrag(item, startY);
             }, 60);
-        });
 
-        list.addEventListener("pointermove", function(e) {
-            if (!armed) {
-                if (pressTimer && Math.abs(e.clientY - startY) > 6) {
-                    clearTimeout(pressTimer);
-                    pressTimer = null;
-                }
-                return;
-            }
-            e.preventDefault();
-            moveDrag(e.clientY);
-        });
-
-        ["pointerup", "pointercancel"].forEach(function(evt) {
-            list.addEventListener(evt, function() {
-                clearTimeout(pressTimer);
-                pressTimer = null;
-                if (armed) {
-                    armed = false;
-                    endDrag();
-                }
-            });
+            window.addEventListener("pointermove", onMove, { passive: false });
+            window.addEventListener("pointerup", onRelease);
+            window.addEventListener("pointercancel", onRelease);
         });
     </script>
 </body>
