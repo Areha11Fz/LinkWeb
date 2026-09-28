@@ -22,17 +22,21 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 url TEXT NOT NULL,
+                favorite INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(links)")}
+        if "favorite" not in cols:
+            conn.execute("ALTER TABLE links ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0")
 
 
 @app.route("/")
 def index():
     with get_db() as conn:
         links = conn.execute(
-            "SELECT * FROM links ORDER BY created_at DESC"
+            "SELECT * FROM links ORDER BY favorite DESC, created_at DESC"
         ).fetchall()
     return render_template("index.html", links=links)
 
@@ -57,6 +61,16 @@ def edit(link_id):
                 "UPDATE links SET name = ?, url = ? WHERE id = ?",
                 (name, url, link_id),
             )
+    return redirect(url_for("index"))
+
+
+@app.route("/favorite/<int:link_id>", methods=["POST"])
+def favorite(link_id):
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE links SET favorite = 1 - favorite WHERE id = ?",
+            (link_id,),
+        )
     return redirect(url_for("index"))
 
 
