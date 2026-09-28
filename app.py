@@ -1,6 +1,6 @@
 import os
 import pathlib
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, jsonify, render_template, request, redirect, url_for
 import sqlite3
 
 app = Flask(__name__)
@@ -23,6 +23,7 @@ def init_db():
                 name TEXT NOT NULL,
                 url TEXT NOT NULL,
                 favorite INTEGER NOT NULL DEFAULT 0,
+                position INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -30,13 +31,21 @@ def init_db():
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(links)")}
         if "favorite" not in cols:
             conn.execute("ALTER TABLE links ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0")
+        if "position" not in cols:
+            conn.execute("ALTER TABLE links ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+            conn.execute(
+                "UPDATE links SET position = id WHERE position = 0"
+            )
 
 
 @app.route("/")
 def index():
     with get_db() as conn:
         links = conn.execute(
-            "SELECT * FROM links ORDER BY favorite DESC, created_at DESC"
+            """
+            SELECT * FROM links
+            ORDER BY favorite DESC, position ASC, created_at DESC, id DESC
+            """
         ).fetchall()
     return render_template("index.html", links=links)
 
@@ -47,7 +56,10 @@ def add():
     url = request.form["url"].strip()
     if name and url:
         with get_db() as conn:
-            conn.execute("INSERT INTO links (name, url) VALUES (?, ?)", (name, url))
+            conn.execute(
+                "INSERT INTO links (name, url, position) VALUES (?, ?, (SELECT COALESCE(MIN(position), 1) - 1 FROM links))",
+                (name, url),
+            )
     return redirect(url_for("index"))
 
 
@@ -72,6 +84,35 @@ def favorite(link_id):
             (link_id,),
         )
     return redirect(url_for("index"))
+
+
+@app.route("/reorder", methods=["POST"])
+def reorder():
+    ids = request.get_json(silent=True)
+    if not isinstance(ids, list):
+        return jsonify(ok=False), 400
+
+    with get_db() as conn:
+        existing = [r["id"] for r in conn.execute("SELECT id FROM links")]
+        known = set(existing)
+        if any(not isinstance(i, int) or i not in known for i in ids):
+            return jsonify(ok=False), 400
+
+        # Links missing from the payload keep their relative order at the end.
+        order = ids + [i for i in existing if i not in set(ids)]
+
+        # Favorites always occupy the top block, so the first N items in the
+        # new order become the favorites.
+        favorite_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM links WHERE favorite = 1"
+        ).fetchone()["c"]
+
+        for index, link_id in enumerate(order):
+            conn.execute(
+                "UPDATE links SET position = ?, favorite = ? WHERE id = ?",
+                (index, 1 if index < favorite_count else 0, link_id),
+            )
+    return jsonify(ok=True)
 
 
 @app.route("/delete/<int:link_id>", methods=["POST"])

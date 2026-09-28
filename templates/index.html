@@ -19,10 +19,11 @@
             <button type="submit">Add</button>
         </form>
 
-        <ul class="link-list">
+        <ul class="link-list" id="link-list">
             {% for link in links %}
-            <li class="link-item{% if link['favorite'] %} favorited{% endif %}">
+            <li class="link-item{% if link['favorite'] %} favorited{% endif %}" data-id="{{ link['id'] }}">
                 <div class="link-row">
+                    <div class="drag-handle" aria-hidden="true">⠿</div>
                     <div class="link-left">
                         <div class="link-info">
                             <a href="{{ link['url'] }}" target="_blank" rel="noopener" class="link-name">{{ link['name'] }}</a>
@@ -88,6 +89,106 @@
         syncClock();
         setInterval(syncClock, 30000);
         setInterval(updateClock, 100);
+
+        var list = document.getElementById("link-list");
+        var dragItem = null;
+        var dragGrab = 0;
+        var dragShift = 0;
+        var pressTimer = null;
+        var startY = 0;
+        var armed = false;
+
+        function items() {
+            return Array.prototype.slice.call(list.querySelectorAll(".link-item"));
+        }
+
+        function persistOrder() {
+            var ids = items().map(function(el) {
+                return parseInt(el.dataset.id, 10);
+            });
+            fetch("{{ url_for('reorder') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(ids)
+            });
+        }
+
+        function beginDrag(el, clientY) {
+            dragItem = el;
+            dragGrab = clientY - el.getBoundingClientRect().top;
+            dragShift = 0;
+            el.classList.add("dragging");
+            document.body.classList.add("reordering");
+        }
+
+        function moveDrag(clientY) {
+            if (!dragItem) return;
+            var rect = dragItem.getBoundingClientRect();
+            var layoutTop = rect.top - dragShift;
+            dragShift = clientY - dragGrab - layoutTop;
+            dragItem.style.transform = "translateY(" + dragShift + "px)";
+
+            var mid = rect.top + dragItem.offsetHeight / 2;
+            var target = null;
+            items().forEach(function(el) {
+                if (el === dragItem) return;
+                var r = el.getBoundingClientRect();
+                if (mid > r.top && mid < r.bottom) target = el;
+            });
+
+            if (target) {
+                var r = target.getBoundingClientRect();
+                var after = mid > r.top + r.height / 2;
+                list.insertBefore(dragItem, after ? target.nextSibling : target);
+            }
+        }
+
+        function endDrag() {
+            if (!dragItem) return;
+            dragItem.style.transform = "";
+            dragItem.classList.remove("dragging");
+            document.body.classList.remove("reordering");
+            dragItem = null;
+            persistOrder();
+        }
+
+        list.addEventListener("pointerdown", function(e) {
+            if (e.button !== 0) return;
+            var item = e.target.closest(".link-item");
+            if (!item) return;
+            if (e.target.closest("a, button, input, form")) return;
+            if (e.pointerType !== "mouse" && !e.target.closest(".drag-handle")) return;
+
+            startY = e.clientY;
+            armed = false;
+            pressTimer = setTimeout(function() {
+                armed = true;
+                beginDrag(item, startY);
+            }, 180);
+        });
+
+        list.addEventListener("pointermove", function(e) {
+            if (!armed) {
+                if (pressTimer && Math.abs(e.clientY - startY) > 6) {
+                    clearTimeout(pressTimer);
+                    pressTimer = null;
+                }
+                return;
+            }
+            e.preventDefault();
+            moveDrag(e.clientY);
+        });
+
+        ["pointerup", "pointercancel"].forEach(function(evt) {
+            list.addEventListener(evt, function() {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+                if (armed) {
+                    armed = false;
+                    endDrag();
+                }
+            });
+        });
     </script>
 </body>
 </html>
