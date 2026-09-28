@@ -98,6 +98,8 @@
         var startY = 0;
         var armed = false;
         var lastOrder = "";
+        var scrollRaf = null;
+        var pointerY = 0;
 
         function items() {
             return Array.prototype.slice.call(list.querySelectorAll(".link-item"));
@@ -132,28 +134,84 @@
 
         function moveDrag(clientY) {
             if (!dragItem) return;
+            pointerY = clientY;
+            placeDragged();
+            updateAutoScroll();
+        }
+
+        // Follows the pointer and drops the item into the nearest slot.
+        function placeDragged() {
+            if (!dragItem) return;
             var rect = dragItem.getBoundingClientRect();
             var layoutTop = rect.top - dragShift;
-            dragShift = clientY - dragGrab - layoutTop;
+            dragShift = pointerY - dragGrab - layoutTop;
             dragItem.style.transform = "translateY(" + dragShift + "px)";
 
             var mid = rect.top + dragItem.offsetHeight / 2;
             var target = null;
+            var dist = Infinity;
+            var after = false;
+
             items().forEach(function(el) {
                 if (el === dragItem) return;
                 var r = el.getBoundingClientRect();
-                if (mid > r.top && mid < r.bottom) target = el;
+                var d = mid < r.top ? r.top - mid : (mid > r.bottom ? mid - r.bottom : 0);
+                if (d < dist) {
+                    dist = d;
+                    target = el;
+                    after = mid > r.top + r.height / 2;
+                }
             });
 
-            if (target) {
-                var r = target.getBoundingClientRect();
-                var after = mid > r.top + r.height / 2;
+            if (target && dist < 40) {
                 list.insertBefore(dragItem, after ? target.nextSibling : target);
+            }
+        }
+
+        var EDGE = 90;
+        var MAX_STEP = 18;
+
+        function autoScrollSpeed() {
+            var h = window.innerHeight;
+            if (pointerY < EDGE) {
+                return -Math.min(MAX_STEP, Math.ceil((EDGE - pointerY) / 5));
+            }
+            if (pointerY > h - EDGE) {
+                return Math.min(MAX_STEP, Math.ceil((pointerY - (h - EDGE)) / 5));
+            }
+            return 0;
+        }
+
+        function scrollStep() {
+            var speed = autoScrollSpeed();
+            if (speed === 0 || !dragItem) {
+                scrollRaf = null;
+                return;
+            }
+            window.scrollBy(0, speed);
+            placeDragged();
+            scrollRaf = requestAnimationFrame(scrollStep);
+        }
+
+        function updateAutoScroll() {
+            if (autoScrollSpeed() === 0) {
+                if (scrollRaf !== null) {
+                    cancelAnimationFrame(scrollRaf);
+                    scrollRaf = null;
+                }
+                return;
+            }
+            if (scrollRaf === null) {
+                scrollRaf = requestAnimationFrame(scrollStep);
             }
         }
 
         function endDrag() {
             if (!dragItem) return;
+            if (scrollRaf !== null) {
+                cancelAnimationFrame(scrollRaf);
+                scrollRaf = null;
+            }
             dragItem.style.transform = "";
             dragItem.classList.remove("dragging");
             document.body.classList.remove("reordering");
